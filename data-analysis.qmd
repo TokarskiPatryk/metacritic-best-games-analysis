@@ -1,0 +1,13 @@
+---
+title: "Najlepiej oceniane gry na Metacritic - analiza"
+author: "Patryk Tokarski"
+format: 
+  html:
+    self-contained: true
+    echo: false
+    warning: false
+    message: false
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
