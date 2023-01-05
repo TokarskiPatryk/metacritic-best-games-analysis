@@ -11,3 +11,168 @@ editor: visual
 editor_options: 
   chunk_output_type: console
 ---
+
+# Wprowadzenie
+
+co to za zbior, co zawiera, jak pobrałem dane
+
+# Analiza
+
+```{r}
+library(tidyverse)
+library(rstatix)
+library(gtsummary)
+library(gt)
+library(lubridate)
+
+library(knitr)
+library(flextable)
+```
+
+```{r}
+# wczytanie danych
+best_games <- read_rds("best_games.rds")
+best_games_2013_2022 <- read_rds("best_games_2013_2022.rds")
+best_games_2013_2022 <-  bind_rows(best_games_2013_2022[1:10])
+best_games_2022 <- read_rds("best_games_2022.rds")
+```
+
+### Summary
+
+```{r}
+best_games %>% 
+  get_summary_stats(type="five_number") %>% 
+  gt() %>% 
+  cols_label(
+    variable = md("**Parametr**"),
+    n = md("**n**"),
+    min = md("**min**"),
+    max = md("**max**"),
+    q1 = md("**q1**"),
+    median = md("**Mediana**"),
+    q3 = md("**q1**"),
+  ) %>% 
+  cols_align("center")
+
+```
+
+```{r}
+# nie wiem czy to brać
+best_games %>%
+  select(-title, -critic_score, -user_score) %>% 
+  tbl_summary()
+  
+```
+
+```{r}
+#| label: fig-hist-release-date
+#| fig-cap: "Wykres pokazujący w którym roku wydane zostały gry znajdujące się w top 100 najlepszych gier"
+
+zielony <- "#66CC33"
+zolty <- "#ffcc34"
+
+best_games %>% ggplot(aes(release_date))+
+  geom_histogram(color = "#000000", fill = zielony)+
+  theme_minimal()
+```
+
+```{r}
+#| label: fig-density-score
+#| fig-cap: "Wykres gęstości tego jak wypadają głosy użytkowników w porównaniu z głosami krytyków"
+
+best_games %>% 
+  ggplot()+
+  geom_density(aes(user_score))+
+  geom_density(aes(critic_score))+
+  theme_minimal()
+```
+
+```{r}
+#| label: tbl-avg-score
+#| tbl-cap: "Średnie oceny użytkowników i krytyków w poszczególnych latach"
+
+best_games_2013_2022 %>%
+  group_by("Rok" = year(release_date)) %>% 
+  summarise("Średnia ocena krytyków" = median(critic_score), "Średnia ocena użytkowników" =median(user_score, na.rm = T)) %>% 
+  gt(process_md = T)
+#moze tablela?
+```
+
+Na których platformach wychodziły najlepsze gry w danym roku?
+
+```{r}
+#| label: fig-avg-score
+#| fig-cap: "2013 rok"
+
+best_games_2013_2022 %>% 
+  mutate(rok = year(release_date)) %>% 
+  filter(rok==2013) %>% 
+  group_by(platform) %>% 
+  summarise(count=n()) %>% 
+  mutate(perc=count/sum(count)) %>% 
+  arrange(count) %>% 
+  ggplot(aes(y=fct_reorder(platform, count), x=perc*100))+
+  geom_col(show.legend = F)
+  
+```
+
+```{r}
+#| label: fig-avg-score
+#| fig-cap: "2017 rok"
+best_games_2013_2022 %>% 
+  mutate(rok = year(release_date)) %>% 
+  filter(rok==2017) %>% 
+  group_by(platform) %>% 
+  summarise(count=n()) %>% 
+  mutate(perc=count/sum(count)) %>% 
+  arrange(count) %>% 
+  ggplot(aes(y=fct_reorder(platform, count), x=perc*100))+
+  geom_col(show.legend = F)
+```
+
+```{r}
+#| label: fig-avg-score
+#| fig-cap: "2022 rok"
+
+best_games_2013_2022 %>% 
+  mutate(rok = year(release_date)) %>% 
+  filter(rok==2022) %>% 
+  group_by(platform) %>% 
+  summarise(count=n()) %>% 
+  mutate(perc=count/sum(count)) %>% 
+  arrange(count) %>% 
+  ggplot(aes(y=fct_reorder(platform, count), x=perc*100))+
+  geom_col(show.legend = F)
+```
+
+```{r}
+#| label: fig-user-vs-critic
+#| fig-cap: "Oceny użytkowników x oceny krytyków"
+best_games_2013_2022 %>% 
+  ggplot(aes(critic_score, user_score))+
+  geom_point()+
+  expand_limits(x = 20, y = 20)+
+  geom_abline(intercept = 0,slope = 1,show.legend = T)
+```
+
+Widać, że zazwyczaj oceny użytkowników są poniżej tych
+
+```{r}
+#| label: tab-most-popular-platform
+#| tab-cap: "Najpopularniejsza platforma w latach 2013-2022"
+
+best_games_2013_2022 %>% 
+  group_by(year(release_date)) %>% 
+  slice_max(n=10, order_by = critic_score) %>%
+  group_by(year(release_date), platform) %>% 
+  count() %>% 
+  ungroup(platform) %>% 
+  top_n(1) %>% 
+  select(-n) %>% 
+  ungroup() %>%
+  select("Rok"="year(release_date)", "Platforma"=platform) %>%
+  gt()
+#pivot longer?
+```
+
+# Podsumowanie i wnioski

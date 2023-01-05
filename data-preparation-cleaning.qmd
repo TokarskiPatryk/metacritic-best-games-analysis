@@ -41,10 +41,11 @@ get_games <- function(url)
     str_replace_all("[:white_space:]","") %>% 
     parse_factor()
   release_date <- pages[seq(3,lngth, features)] %>% parse_date(format = "%B %d, %Y")
-  score <- pages[seq(4,lngth, features)] %>% parse_number()
+  critic_score <- pages[seq(4,lngth, features)] %>% parse_number()
   user_score <- pages[seq(5,lngth, features)] %>% parse_number(na = "tbd")
+  user_score <- user_score*10
   
-  df <- tibble(title, platform, release_date, score, user_score)
+  df <- tibble(title, platform, release_date, critic_score, user_score)
   return(df)
 }
 
