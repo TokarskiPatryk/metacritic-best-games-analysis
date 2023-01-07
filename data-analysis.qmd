@@ -113,7 +113,7 @@ Jak możemy zauważyć, w obu przypadkach wysokie oceny krytyków niekoniecznie 
 
 ```{r}
 #| label: tbl-avg-score
-#| fig-cap: "Średnie oceny użytkowników i krytyków w poszczególnych latach"
+#| tbl-cap: "Średnie oceny użytkowników i krytyków w poszczególnych latach"
 best_games_2013_2022 %>%
   group_by("Rok wydania" = year(release_date)) %>% 
   summarise("Średnia ocena krytyków" = median(critic_score), "Średnia ocena użytkowników" =median(user_score, na.rm = T)) %>% 
