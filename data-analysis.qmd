@@ -8,15 +8,10 @@ format:
     warning: false
     message: false
 editor: visual
+lang: pl
 editor_options: 
   chunk_output_type: console
 ---
-
-# Wprowadzenie
-
-co to za zbior, co zawiera, jak pobrałem dane
-
-# Analiza
 
 ```{r}
 library(tidyverse)
@@ -24,9 +19,6 @@ library(rstatix)
 library(gtsummary)
 library(gt)
 library(lubridate)
-
-library(knitr)
-library(flextable)
 ```
 
 ```{r}
@@ -34,13 +26,53 @@ library(flextable)
 best_games <- read_rds("best_games.rds")
 best_games_2013_2022 <- read_rds("best_games_2013_2022.rds")
 best_games_2013_2022 <-  bind_rows(best_games_2013_2022[1:10])
-best_games_2022 <- read_rds("best_games_2022.rds")
+
+# globalny motyw ggplot
+theme_set(theme_minimal())
 ```
 
-### Summary
+# Wprowadzenie
+
+Zbióry danych, które posłużą nam dzisiaj do analizy pobrałem za pomocą narzędzi webscrapingu ze strony [Metacritic](https://www.metacritic.com/browse/games/score/metascore/all/all/filtered?sort=desc&view=detailed). Jeden z nich zawiera 100 najlepiej ocenianych gier przez krytyków w historii. Drugi zawiera 1000 obserwacji, które są połączeniem najlepszych gier z lat 2013-2022 (po sto na każdy rok). Do pierwszego będę się odwoływał jako "zbiór 100 najlepszych", a do drugiego "zbiorem 1000 najlepszych" gier.
+
+Każda z gier w serwisie Metacritic ma osobną ocenę dla każdej z platform, na której miała premierę. Aby gra znalazła się w tym zestawieniu, musiała posiadać przynajmniej 7 ocen krytyków, którymi są najważniejsze serwisy lub magazyny zajmujące się grami.
+
+Każda z obserwacji zawiera pięć parametrów:
+
+-   tytuł,
+
+-   platformę, na której została wydana gra,
+
+-   datę wydania gry,
+
+-   ocenę krytyków (0-100),
+
+-   ocenę użytkowników (0-100)
 
 ```{r}
+#| label: tbl-best-best
+#| tbl-cap: "Dziewięć pierwszych (najlepszych) gier ze zbioru danych"
+
+head(best_games,n=9) %>% 
+  gt() %>%
+  cols_align("center") %>% 
+  cols_label(title=md("**Tytuł**"),
+         platform=md("**Platforma**"),
+         release_date=md("**Data wydania**"),
+         critic_score=md("**Ocena krytyków**"),
+         user_score=md("**Ocena użytkowników**"))
+```
+
+# Analiza
+
+### Podsumowanie parametrów ilościowych
+
+```{r}
+#| label: tbl-summary
+#| tbl-cap: "Zbiór 100 najlepszych"
 best_games %>% 
+  select("Ocena krytyków" = critic_score, 
+         "Ocena użytkowników" = user_score) %>% 
   get_summary_stats(type="five_number") %>% 
   gt() %>% 
   cols_label(
@@ -57,12 +89,40 @@ best_games %>%
 ```
 
 ```{r}
-# nie wiem czy to brać
-best_games %>%
-  select(-title, -critic_score, -user_score) %>% 
-  tbl_summary()
-  
+#| label: tbl-summary-two
+#| tbl-cap: "Zbiór 1000 najlepszych"
+best_games_2013_2022 %>% 
+  select("Ocena krytyków" = critic_score, 
+         "Ocena użytkowników" = user_score) %>% 
+  get_summary_stats(type="five_number") %>% 
+  gt() %>% 
+  cols_label(
+    variable = md("**Parametr**"),
+    n = md("**n**"),
+    min = md("**min**"),
+    max = md("**max**"),
+    q1 = md("**q1**"),
+    median = md("**Mediana**"),
+    q3 = md("**q1**"),
+  ) %>% 
+  cols_align("center")
+
 ```
+
+Jak możemy zauważyć, w obu przypadkach wysokie oceny krytyków niekoniecznie oznaczą także wysokie oceny użytkowników.
+
+```{r}
+#| label: tbl-avg-score
+#| fig-cap: "Średnie oceny użytkowników i krytyków w poszczególnych latach"
+best_games_2013_2022 %>%
+  group_by("Rok wydania" = year(release_date)) %>% 
+  summarise("Średnia ocena krytyków" = median(critic_score), "Średnia ocena użytkowników" =median(user_score, na.rm = T)) %>% 
+  gt()
+```
+
+Średnia ocena najlepszych gier według krytyków oraz użytkowników na przestrzeni lat jest stabilna oraz wynosi odpowiednio 86 i 79.
+
+### W którym roku zostały wydane gry oceniane przez krytyków jako najlepsze?
 
 ```{r}
 #| label: fig-hist-release-date
@@ -71,95 +131,42 @@ best_games %>%
 zielony <- "#66CC33"
 zolty <- "#ffcc34"
 
-best_games %>% ggplot(aes(release_date))+
-  geom_histogram(color = "#000000", fill = zielony)+
-  theme_minimal()
+best_games %>% ggplot(aes(release_date,fill=..x..))+
+  labs(x="Rok wydania", y="Procent")+
+  geom_histogram(color="black", bins = 13, show.legend = F)+
+  scale_fill_gradient(low=zolty, high="#ff9b0f")
 ```
 
-```{r}
-#| label: fig-density-score
-#| fig-cap: "Wykres gęstości tego jak wypadają głosy użytkowników w porównaniu z głosami krytyków"
+Jak widać zdecydowana większość najlepiej ocenianych gier została wydana w pierwszej dekadzie XXI wieku.
 
-best_games %>% 
-  ggplot()+
-  geom_density(aes(user_score))+
-  geom_density(aes(critic_score))+
-  theme_minimal()
-```
+### Zmiana platform w czasie
 
 ```{r}
-#| label: tbl-avg-score
-#| tbl-cap: "Średnie oceny użytkowników i krytyków w poszczególnych latach"
-
-best_games_2013_2022 %>%
-  group_by("Rok" = year(release_date)) %>% 
-  summarise("Średnia ocena krytyków" = median(critic_score), "Średnia ocena użytkowników" =median(user_score, na.rm = T)) %>% 
-  gt(process_md = T)
-#moze tablela?
-```
-
-Na których platformach wychodziły najlepsze gry w danym roku?
-
-```{r}
-#| label: fig-avg-score
-#| fig-cap: "2013 rok"
+#| label: fig-most-popular-consoles
+#| fig-cap: "Na których platformach wychodziły najlepsze gry w danym roku?"
 
 best_games_2013_2022 %>% 
   mutate(rok = year(release_date)) %>% 
-  filter(rok==2013) %>% 
-  group_by(platform) %>% 
+  group_by(platform, rok) %>% 
   summarise(count=n()) %>% 
-  mutate(perc=count/sum(count)) %>% 
   arrange(count) %>% 
-  ggplot(aes(y=fct_reorder(platform, count), x=perc*100))+
-  geom_col(show.legend = F)
-  
+  filter(rok %in% c(2013,2016,2019,2022)) %>% 
+  ggplot(aes(y=fct_reorder(platform, count), x=count, fill=count))+
+  geom_col(show.legend = F)+
+  facet_wrap(vars(rok))+
+  scale_fill_gradient(low="#66CC33", high="darkgreen")+
+  labs(
+    x="Procent", y="Platforma"
+  )
 ```
 
-```{r}
-#| label: fig-avg-score
-#| fig-cap: "2017 rok"
-best_games_2013_2022 %>% 
-  mutate(rok = year(release_date)) %>% 
-  filter(rok==2017) %>% 
-  group_by(platform) %>% 
-  summarise(count=n()) %>% 
-  mutate(perc=count/sum(count)) %>% 
-  arrange(count) %>% 
-  ggplot(aes(y=fct_reorder(platform, count), x=perc*100))+
-  geom_col(show.legend = F)
-```
+Na tych czterech wykresach możemy zaobserwować zmianę platform, na których wychodziły najlepsze gry. Wszystkie łączy to, że nieprzerwanie w gronie najpopularniejszych platform może cieszyć się PC. Poza tym w 2013 roku widzimy dominację konsol PlayStation3 oraz Xbox360. W tym także roku popularne były platformy takie jak 3DS, WiiU i PSVita, które jednak swoją młodość miały już za sobą i musiały w przyszłych latach ustąpić miejsca nowszym konsolom. W 2016 roku najpopularniejsze były Playstation4 oraz XboxOne, czyli kolejna generacja konsol. W 2019 roku dołączyła do nich przenośna konsola Switch, która przebiła w ilości najlepszych gier komputery PC! Na ostatnim wykresie, czyli roku 2022 przyszła kolejna generacja czołowych konsol (Playstation5, XboxSeries) i to ona, wraz ze Switchem i komputerami PC aktualnie dominuje na rynku.
 
-```{r}
-#| label: fig-avg-score
-#| fig-cap: "2022 rok"
-
-best_games_2013_2022 %>% 
-  mutate(rok = year(release_date)) %>% 
-  filter(rok==2022) %>% 
-  group_by(platform) %>% 
-  summarise(count=n()) %>% 
-  mutate(perc=count/sum(count)) %>% 
-  arrange(count) %>% 
-  ggplot(aes(y=fct_reorder(platform, count), x=perc*100))+
-  geom_col(show.legend = F)
-```
-
-```{r}
-#| label: fig-user-vs-critic
-#| fig-cap: "Oceny użytkowników x oceny krytyków"
-best_games_2013_2022 %>% 
-  ggplot(aes(critic_score, user_score))+
-  geom_point()+
-  expand_limits(x = 20, y = 20)+
-  geom_abline(intercept = 0,slope = 1,show.legend = T)
-```
-
-Widać, że zazwyczaj oceny użytkowników są poniżej tych
+### Platforma z największą ilością topowych gier w danym roku
 
 ```{r}
 #| label: tab-most-popular-platform
-#| tab-cap: "Najpopularniejsza platforma w latach 2013-2022"
+#| tab-cap: "Najpopularniejsza platforma z top 10 najlepszych gier w latach 2013-2022"
 
 best_games_2013_2022 %>% 
   group_by(year(release_date)) %>% 
@@ -172,7 +179,73 @@ best_games_2013_2022 %>%
   ungroup() %>%
   select("Rok"="year(release_date)", "Platforma"=platform) %>%
   gt()
-#pivot longer?
 ```
 
+W celu stworzenia powyższej tabeli wybrałem najpopularniejszą platformę wśród z 10 najwyżej ocenianych gier w danym roku. Jeśli jakiś rok występuje dwa razy, oznacza to, że obie platformy były równie popularne. W ostatnich czterech latach zdecydowanie dominuje PC. Wcześniej jednak, była większa różnorodność platform.
+
+### W których miesiącach są wydawane najlepsze gry?
+
+```{r}
+#| label: fig-month-best
+#| fig-cap: "Ilość gier, które zostały wydane w danym miesiącu"
+
+best_games_2013_2022 %>% 
+  mutate(miesiac = as.factor((month(release_date)))) %>% 
+  group_by(miesiac) %>% 
+  summarise(ile= n()) %>% 
+  ggplot(aes(x=miesiac, y=ile/10, fill=ile))+
+  geom_col(show.legend = F, color="black")+
+  xlab("Miesiąc")+ylab("Procent")+
+  scale_fill_gradient(low=zolty, high="#ff9b0f")
+```
+
+Najwięcej premier topowych tytułów ma miejsce w marcu, wrześniu, październiku i listopadzie. Dużo premier w ostatnich miesiącach roku może być to spowodowane tym, że nagrody za gry roku wydawane są w grudniu, a tytuły gier niedawno ogrywanych łatwiej jest nam sobie przypomnieć niż tych ogrywanych wcześniej.
+
+### W którym dniu tygodnia wydawane są najlepsze gry?
+
+```{r}
+#| label: fig-day-best
+#| fig-cap: "Ilość gier, które zostały wydane w danym dniu tygodnia"
+
+best_games_2013_2022 %>% 
+  mutate(dzien = as.factor(lubridate::wday(release_date, week_start=1))) %>% 
+  group_by(dzien) %>% 
+  summarise(ile= n()) %>% 
+  ggplot(aes(x=dzien, y=ile/10, fill=ile/10))+
+  geom_col(show.legend = F, color="black")+
+  xlab("Dzień tygodnia")+ylab("Procent")+
+  scale_fill_gradient(low=zielony, high="darkgreen")
+```
+
+Możemy zauważyć, że bardzo dużo tytułów (\>40%) ma swoją premierę we wtorki. W internecie nie byłem w stanie znaleść zweryfikowanej odpowiedzi na pytanie, dlaczego akurat to w ten dzień jest najwięcej wydawanych gier. Tworzonych jest jednak wiele teorii. Jedna z nich twierdzi, że jest to spowodowane kwestiami logistycznymi. Inna natomiast twierdzi, że pochodzi to od zabiegu marketingowego zastosowanego przy premierze Sonica[^1]. Ciekawym jest też to, że znikoma ilość tytułów ma premierę w sobotę i niedzielę.
+
+[^1]: https://www.businessinsider.in/The-Weird-Reason-Why-Video-Games-Are-Released-On-Tuesdays/articleshow/45117573.cms
+
+### Na której platformie było najwięcej z top 100 najlepiej ocenianych gier?
+
+```{r}
+#| label: fig-best-platformm
+#| fig-cap: "Jaki procent tytułów w zbiorze 100 najlepszych gier wyszedł na danej platformie?"
+
+best_games %>% 
+  group_by(platform) %>% 
+  summarise(ilosc = n()) %>% 
+  ggplot(aes(y=fct_reorder(platform, ilosc), x=ilosc, fill=ilosc))+
+  geom_col(show.legend = F)+
+  xlab("Procent")+ ylab("Platforma")+
+  scale_fill_gradient(low="#66CC33", high="darkgreen")
+```
+
+Jak widać, mamy cztery platformy, które są w czołówce. Są to PC, Xbox360, PlayStation3 i PlayStation2, na których wyszła ponad połowa najlepszych gier.
+
 # Podsumowanie i wnioski
+
+Dane o najlepszych grach z serwisu Metacritic dają wiele ciekawych spostrzeżeń:
+
+-   większość najlepiej ocenianych gier miała swoją premierę na początku lat dwutysięcznych (Patrz @fig-hist-release-date),
+
+-   możemy zaobserwować zmiany w rankingu najważnieszych platform do grania (Patrz @fig-most-popular-consoles) i dostrzec ciągłą dominację komputerów PC,
+
+-   miesiącami w których zazwyczaj premiery mają najlepsze gry to marzec, wrzesień, październik i listopad (Patrz @fig-month-best).
+
+Jednak najciekawszą i najbardziej tajemniczą ciekawostką dla mnie było to, że we wtorki premierę ma najwięcej gier (Patrz @fig-day-best). Zakładałem, że najpopularniejszym dniem będzie piątek, ponieważ to zazwyczaj wtedy premierę mają albumy muzyczne i filmy. A jednak medium jakim są gry komputerowe pod tym względem odstają od reszty dzieł kultury.
